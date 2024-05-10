@@ -13,11 +13,12 @@ export const TABLE_NAMES = {
 export const USER_CONVERSATION_STATES = {
     SET_NAME: 'setName',
     SET_PORTFOLIO: 'setPortfolio',
-    SET_HOUR_RATE: 'setRate',
-    UPD_RATE: 'updRate',
+    SET_HOUR_RATE: 'setHourRate',
+    UPD_HOUR_RATE: 'updHourRate',
     SET_JOB_ESTIMATION_TIME: 'setJobEstimationTime',
     SET_JOB_REAL_TIME: 'setJobRealTime',
 };
+
 export const USER_STATUSES = {
     NEW_USER: 'Новый пользователь',
     MAKE_DOCS: 'Подпись документов',
@@ -49,10 +50,14 @@ export const JOBS_STATUSES = {
 }
 
 export const JOBS_EXECUTIONS_TABLE_COLUMNS = {
-    USER: 'Исполнитель',
+    USER_ID: '(auto) UserID',
     JOB: 'Задача',
     STATUS: 'Статус',
     TASK_NAME: '(auto) Название задачи',
+    ESTIMATION_HOUR: 'Оценка в часах (максимум)',
+    REAL_HOUR: 'Фактическое количество часов',
+    LEAD_DIRECTION_SCORE: 'Артдирекшен лида',
+    LEAD_COMMUNICATION_SCORE: 'Оценка коммуникации лида',
     STATUS_CHANGED: '(auto) Статус изменился',
     USER_CHAT_ID: '(auto) ChatId',
 }
@@ -66,9 +71,17 @@ export const JOBS_EXECUTION_STATUSES = {
 
 }
 
+export const PAYMENTS_TABLE_COLUMNS = {
+    USER: 'Пользователь',
+    PAYMENT_AMOUNT: 'Сумма оплаты',
+}
 
 export const OPTION_BUTTON_ACTION = {
     JOB_RESPONSE: 'jobResponse',
+    CHANGE_RATE: 'changeRate',
+    REQUEST_MONEY: 'requestMoney',
+    LEAD_DIRECTION_SCORE: 'dirScore',
+    LEAD_COMMUNICATION_SCORE: 'commScore',
 }
 
 export const DEFAULT_ERROR_MESSAGE_TO_USER = 'Что-то пошло не так. Попробуй еще раз или обратись в поддержку через команду /help';

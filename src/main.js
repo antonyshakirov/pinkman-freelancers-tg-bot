@@ -88,6 +88,9 @@ export const DEFAULT_ERROR_MESSAGE_TO_USER = 'Что-то пошло не так
 
 export async function initializeServer() {
     try {
+        console.log("Start initialize server")
+        // todo log
+
         await Base.initUserDataByBase();
         await Base.initBase();
         await Bot.initBot();

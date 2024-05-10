@@ -1,5 +1,4 @@
 import {
-    JOBS_EXECUTION_STATUSES,
     JOBS_EXECUTIONS_TABLE_COLUMNS,
     JOBS_TABLE_COLUMNS,
     TABLE_NAMES,
@@ -8,7 +7,7 @@ import {
 } from "./main.js";
 
 import Airtable from 'airtable';
-import {informUserAboutNewStatus, sendNewJobToUsers, informUserAboutJobExecutionNewStatus} from "./bot.js";
+import {informUserAboutNewStatus, sendNewJobToUsers, informUserAboutJobExecutionNewStatus} from "./bot-actions.js";
 
 export const base = new Airtable({apiKey: 'patyjyp3D51sr4Xbc.105a1158dc0342d7ba6cb59261f1293162a3f6173626b53cefd388da973adc86'}).base('apppEZ9COxjPRpdCL');
 

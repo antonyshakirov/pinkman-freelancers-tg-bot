@@ -1,6 +1,7 @@
 import * as Bot from "./bot.js";
 import * as Base from "./base.js";
 
+
 export const usersDataCash = {}; // user data by ChatId
 
 export const TABLE_NAMES = {
@@ -40,6 +41,7 @@ export const USERS_TABLE_COLUMNS = {
 
 export const JOBS_TABLE_COLUMNS = {
     STATUS: 'Статус задачи',
+    NAME: 'Название задачи',
     DESCRIPTION: 'Подробное описание задачи',
     DEADLINE_DATE: 'Крайняя дата рассмотрения откликов',
     JOB_WAS_SEND: '(auto) Задача отправлена пользователям',
@@ -50,8 +52,9 @@ export const JOBS_STATUSES = {
 }
 
 export const JOBS_EXECUTIONS_TABLE_COLUMNS = {
-    USER_ID: '(auto) UserID',
-    JOB: 'Задача',
+    USER_RECORD_ID: '(auto) UserID',
+    JOB_RECORD_ID: 'Задача',
+    JOB_NAME: '(auto) Название задачи',
     STATUS: 'Статус',
     TASK_NAME: '(auto) Название задачи',
     ESTIMATION_HOUR: 'Оценка в часах (максимум)',
@@ -85,6 +88,8 @@ export const OPTION_BUTTON_ACTION = {
 }
 
 export const DEFAULT_ERROR_MESSAGE_TO_USER = 'Что-то пошло не так. Попробуй еще раз или обратись в поддержку через команду /help';
+export const DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE = 'Введи ответ на вопрос выше:';
+
 
 export async function initializeServer() {
     try {

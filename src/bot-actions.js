@@ -1,5 +1,5 @@
 import {
-    DEFAULT_ERROR_MESSAGE_TO_USER, JOBS_EXECUTION_STATUSES,
+    DEFAULT_ERROR_MESSAGE_TO_USER, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE, JOBS_EXECUTION_STATUSES,
     JOBS_EXECUTIONS_TABLE_COLUMNS, JOBS_STATUSES, JOBS_TABLE_COLUMNS, OPTION_BUTTON_ACTION, PAYMENTS_TABLE_COLUMNS,
     TABLE_NAMES, USER_CONVERSATION_STATES,
     USER_STATUSES, USERS_TABLE_COLUMNS,
@@ -9,6 +9,124 @@ import * as Base from "./base.js";
 import {createRecordInTable, findRecordInTableById, updateFieldsInTable} from "./base.js";
 import {convertRichTextToHtml} from "./util.js";
 import {editMessageReplyMarkup, sendPlainTextToChatInHTMLFormat, sendTextWithOptionsToChat} from "./bot.js";
+
+
+export async function onMessageEnteredText(msg) {
+    const chatId = msg.chat.id;
+
+    let userData = usersDataCash[chatId];
+    if (userData) {
+
+        if (userData.conversationState) {
+            await applyConversationAnswer(msg, userData);
+            return;
+        }
+
+        switch (userData.status) {
+            case USER_STATUSES.NEW_USER:
+                await newUserReply(msg, userData);
+                break;
+
+            case USER_STATUSES.MAKE_DOCS:
+                await userMakeDocsReply(msg);
+                break;
+
+            case USER_STATUSES.APPROVED:
+                await userApprovedReply(msg);
+                break;
+
+            case USER_STATUSES.REJECTED:
+                await userRejectedReply(msg);
+                break;
+        }
+
+    } else {
+        await startWorkWithNewUser(msg);
+    }
+}
+
+async function applyConversationAnswer(msg, userData) {
+    if (!userData) {
+        return;
+    }
+
+    switch (userData.conversationState) {
+        case USER_CONVERSATION_STATES.SET_NAME:
+            await userEnteredName(msg, userData);
+            break;
+
+        case USER_CONVERSATION_STATES.SET_PORTFOLIO:
+            await userEnteredPortfolio(msg, userData);
+            break;
+
+        case USER_CONVERSATION_STATES.SET_HOUR_RATE:
+            await userEnteredHourRate(msg, userData);
+            break;
+
+        case USER_CONVERSATION_STATES.UPD_HOUR_RATE:
+            await userEnteredHourRate(msg, userData);
+            break;
+
+        case USER_CONVERSATION_STATES.SET_JOB_ESTIMATION_TIME:
+            await userEnteredJobEstimationTime(msg, userData);
+            break;
+
+        case USER_CONVERSATION_STATES.SET_JOB_REAL_TIME:
+            await userEnteredRealTimeForJob(msg, userData);
+            break;
+
+        default:
+            await sendPlainTextToChatInHTMLFormat(msg.chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
+            break;
+    }
+}
+
+async function userMakeDocsReply(msg) {
+    await sendPlainTextToChatInHTMLFormat(msg.chat.id, 'Твои документы еще в процессе подготовки и подписания. ' +
+        '\nМы свяжемся с тобой по документам, если еще не связались. Либо сообщим о статусе ' +
+        'твоего допуска к выполнению работ');
+}
+
+async function userApprovedReply(msg) {
+    await sendPlainTextToChatInHTMLFormat(msg.chat.id, 'Открой меню, чтобы просмотреть и изменить информацию');
+}
+
+async function userRejectedReply(msg) {
+    await sendPlainTextToChatInHTMLFormat(msg.chat.id, 'Сейчас у тебя нет доступа к платформе и заданиям');
+}
+
+export async function startWorkWithNewUser(msg) {
+    const chatId = msg.chat.id;
+
+    try {
+        const fields = {
+            [USERS_TABLE_COLUMNS.CHAT_ID]: chatId.toString(),
+            [USERS_TABLE_COLUMNS.TELEGRAM]: msg.chat.username.toString(),
+        };
+
+        const airtableRecord = await Base.createRecordInTable(TABLE_NAMES.USERS, fields);
+        if (!airtableRecord) {
+            // todo log
+            await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
+            return;
+        }
+
+        let userData = {};
+        userData.chatId = chatId;
+        userData.airtableId = airtableRecord.id;
+        userData.telegramUsername = airtableRecord.fields[USERS_TABLE_COLUMNS.TELEGRAM];
+
+        usersDataCash[chatId] = userData;
+
+        userData.status = USER_STATUSES.NEW_USER;
+        userData.conversationState = USER_CONVERSATION_STATES.SET_NAME;
+        await tellUserEnterName(userData);
+
+    } catch (e) {
+        // todo log
+        await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
+    }
+}
 
 
 export async function showUserProfileInfo(msg) {
@@ -126,7 +244,7 @@ export async function showUserTaskInfo(msg) {
         }
 
         const airtableId = userData.airtableId;
-        const findUsersSelectFormula = `{${JOBS_EXECUTIONS_TABLE_COLUMNS.USER_ID}} = '${airtableId}'`
+        const findUsersSelectFormula = `{${JOBS_EXECUTIONS_TABLE_COLUMNS.USER_RECORD_ID}} = '${airtableId}'`
         const userTaskRecords = await Base.selectRecordsInTable(TABLE_NAMES.JOBS_EXECUTIONS, findUsersSelectFormula)
 
         let taskInProcessListText = '';
@@ -165,93 +283,33 @@ export async function showUserTaskInfo(msg) {
     }
 }
 
-export async function onMessageEnteredText(msg) {
-    const chatId = msg.chat.id;
-
-    let userData = usersDataCash[chatId];
-    if (userData) {
-        switch (userData.status) {
-            case USER_STATUSES.NEW_USER:
-                await replyToFillUserFields(msg, userData);
-                break;
-
-            case USER_STATUSES.MAKE_DOCS:
-                await userMakeDocsReply(msg, userData);
-                break;
-
-            case USER_STATUSES.APPROVED:
-                await userApprovedReply(msg, userData);
-                break;
-
-            case USER_STATUSES.REJECTED:
-                await userRejectedReply(msg, userData);
-                break;
-        }
-
-    } else {
-        await startWorkWithNewUser(msg);
+async function newUserReply(msg, userData) {
+    if (!userData) {
+        return;
     }
-}
 
-async function replyToFillUserFields(msg, userData) {
-    if (userData.conversationState === USER_CONVERSATION_STATES.SET_NAME) {
-        await userEnteredName(msg, userData);
-    } else if (!userData.name) {
+    if (!userData.name) {
+        userData.conversationState = USER_CONVERSATION_STATES.SET_NAME;
         await tellUserEnterName(userData);
-    } else if (userData.conversationState === USER_CONVERSATION_STATES.SET_PORTFOLIO) {
-        await userEnteredPortfolio(msg, userData);
+
     } else if (!userData.portfolio) {
+        userData.conversationState = USER_CONVERSATION_STATES.SET_PORTFOLIO;
         await tellUserEnterPortfolio(userData);
-    } else if (userData.conversationState === USER_CONVERSATION_STATES.SET_HOUR_RATE) {
-        await userEnteredHourRate(msg, userData);
+
     } else if (!userData.hourRate) {
         userData.conversationState = USER_CONVERSATION_STATES.SET_HOUR_RATE;
         await tellUserEnterHourRate(userData);
     }
 }
 
-async function userMakeDocsReply(msg, userData) {
-    await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Твои документы еще в процессе подготовки и подписания. ' +
-        '\nМы свяжемся с тобой по документам, если еще не связались. Либо сообщим о статусе ' +
-        'твоего допуска к выполнению работ');
-}
-
-async function userApprovedReply(msg, userData) {
-    switch (userData.conversationState) {
-        case USER_CONVERSATION_STATES.UPD_HOUR_RATE:
-            await userEnteredHourRate(msg, userData);
-            break;
-
-        case USER_CONVERSATION_STATES.SET_JOB_ESTIMATION_TIME:
-            await userEnteredJobEstimationTime(msg, userData);
-            break;
-
-        case USER_CONVERSATION_STATES.SET_JOB_REAL_TIME:
-            await userEnteredRealTimeForJob(msg, userData);
-            break;
-
-        default:
-            await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Открой меню чтобы просмотреть и изменить информацию');
-            break;
-    }
-
-}
-
-async function userRejectedReply(msg, userData) {
-    await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Сейчас у тебя нет доступа к платформе и заданиям');
-}
-
-
 async function tellUserEnterName(userData) {
-    userData.conversationState = USER_CONVERSATION_STATES.SET_NAME;
-    await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Для начала введи свое имя и фамилию: ');
-
+    await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Для начала введи свое имя и фамилию:');
 }
 
 async function userEnteredName(msg, userData) {
     const enteredName = msg.text;
     if (enteredName.length <= 3) {
-        await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Имя и фамилия должны быть больше 3 символов. Введите еще раз:');
+        await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Имя и фамилия должны быть больше 3 символов. Введи еще раз:');
 
 
     } else {
@@ -263,6 +321,7 @@ async function userEnteredName(msg, userData) {
             .then(record => {
 
                 userData.name = record.fields[USERS_TABLE_COLUMNS.NAME]
+                userData.conversationState = USER_CONVERSATION_STATES.SET_PORTFOLIO;
                 tellUserEnterPortfolio(userData);
             })
             .catch(async err => {
@@ -274,10 +333,8 @@ async function userEnteredName(msg, userData) {
 
 
 async function tellUserEnterPortfolio(userData) {
-    await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Укажи одну ссылку на свое портфолио.' +
+    await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Укажи одну ссылку на свое портфолио в формате https://. ' +
         'Это может быть страница Behance, Notion, личный сайт или любая другая ссылка на собранные работы');
-
-    userData.conversationState = USER_CONVERSATION_STATES.SET_PORTFOLIO;
 }
 
 async function userEnteredPortfolio(msg, userData) {
@@ -297,10 +354,10 @@ async function userEnteredPortfolio(msg, userData) {
         };
 
         Base.updateFieldsInTable(TABLE_NAMES.USERS, userData.airtableId, fields)
-            .then(record => {
+            .then(async record => {
                 userData.portfolio = record.fields[USERS_TABLE_COLUMNS.PORTFOLIO]
                 userData.conversationState = USER_CONVERSATION_STATES.SET_HOUR_RATE;
-                tellUserEnterHourRate(userData);
+                await tellUserEnterHourRate(userData);
 
             })
             .catch(async err => {
@@ -316,17 +373,7 @@ async function tellUserEnterHourRate(userData) {
     await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Укажи свою часовую ставку в рублях. ' +
         'Введи число без каких-либо символов, с точностью до рубля.' +
         '\n\nВ будущем ее можно будет изменять в профиле, но при откликах на задачи мы будем рассматривать ' +
-        'твою текущую ставку в час, укаанную в профиле');
-}
-
-async function tellUserEnterEstimationTime(userData) {
-    await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Укажи максимальную оценку в часах для задачи.\n' +
-        'По рзавершению работ, если мы тебя выберем под задачу, можно будет указать реально затраченные часы. Но мы оплатим' +
-        'не более текущей максимальной оценки');
-}
-
-async function tellUserEnterRealTime(userData) {
-    await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Укажи, сколько часов ты потратил на задачу:');
+        'твою текущую ставку в час, указанную в профиле');
 }
 
 async function userEnteredHourRate(msg, userData) {
@@ -351,14 +398,13 @@ async function userEnteredHourRate(msg, userData) {
                 userData.hourRate = record.fields[USERS_TABLE_COLUMNS.HOUR_RATE]
                 userData.telegramUsername = record.fields[USERS_TABLE_COLUMNS.TELEGRAM]; // upd if it changes on that step
 
-                userData.conversationState = null;
                 if (userData.conversationState === USER_CONVERSATION_STATES.SET_HOUR_RATE) {
-                    userData.status = USER_STATUSES.MAKE_DOCS;
 
-
-                    await informUserAboutNewStatus(userData);
+                    userData.conversationState = null;
+                    await applyUserNewStatus(userData, USER_STATUSES.MAKE_DOCS)
 
                 } else {
+                    userData.conversationState = null;
                     await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Часовая ставка обновлена');
                 }
 
@@ -369,6 +415,119 @@ async function userEnteredHourRate(msg, userData) {
 
             })
     }
+}
+
+
+export async function sendNewJobToUsers(jobRecord) {
+    if (!jobRecord) {
+        return;
+    }
+
+    for (const chatId in usersDataCash) {
+        const userData = usersDataCash[chatId];
+        if (!userData) {
+            return;
+        }
+
+        if (userData.status === USER_STATUSES.APPROVED) {
+            await sendJobToUser(userData, jobRecord);
+        }
+    }
+
+    // save information that job was send to users
+    const fields = {
+        [JOBS_TABLE_COLUMNS.JOB_WAS_SEND]: true,
+    };
+    Base.updateFieldsInTable(TABLE_NAMES.JOBS, jobRecord.id, fields)
+        .then(() => {
+        })
+        .catch(err => {
+            //todo log
+        })
+
+}
+
+async function sendJobToUser(userData, jobRecord) {
+
+    let taskTitleTextHtml = '<b>' + jobRecord.fields[JOBS_TABLE_COLUMNS.NAME] + '</b>\n';
+    let descriptionRichText = jobRecord.fields[JOBS_TABLE_COLUMNS.DESCRIPTION];
+
+
+    const deadlineDate = jobRecord.fields[JOBS_TABLE_COLUMNS.DEADLINE_DATE];
+    if (deadlineDate && descriptionRichText) {
+        const deadlineFormatDate = new Date(deadlineDate).toLocaleDateString('ru-Ru');
+        descriptionRichText += '\n\n**Крайняя дата приема заявок:** ' + deadlineFormatDate;
+    }
+
+    const htmlJobDescription = convertRichTextToHtml(taskTitleTextHtml + descriptionRichText);
+
+    const options = {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{
+                    text: 'Откликнуться',
+                    callback_data: JSON.stringify({action: OPTION_BUTTON_ACTION.JOB_RESPONSE, jobId: jobRecord.id})
+                }]
+            ]
+        }),
+        parse_mode: 'HTML' // Set parse mode to HTML
+    };
+
+    await sendTextWithOptionsToChat(userData.chatId, htmlJobDescription, options);
+    await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+}
+
+
+async function tellUserEnterEstimationTime(userData, jobName) {
+    await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Укажи максимальную оценку в часах для задачи "' + jobName + '".\n' +
+        'По завершению работ, если мы тебя выберем под задачу, можно будет указать реально затраченные часы. Но мы оплатим ' +
+        'не более текущей максимальной оценки');
+}
+
+async function userEnteredJobEstimationTime(msg, userData) {
+    const enteredTime = msg.text;
+    const enteredTimeInt = parseInt(enteredTime.replace(' ', ''));
+
+    if (!enteredTimeInt || enteredTimeInt <= 0) {
+        await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Введено некорректное время. \nУкажи в часах максимальную оценку на задачу:');
+
+    } else {
+
+        if (userData.selectedJobExecutionAirtableId) {
+            // upd record
+            const fields = {
+                [JOBS_EXECUTIONS_TABLE_COLUMNS.ESTIMATION_HOUR]: enteredTimeInt,
+            };
+            const updatedRecord = await updateFieldsInTable(TABLE_NAMES.JOBS_EXECUTIONS, userData.selectedJobExecutionAirtableId, fields);
+            if (updatedRecord) {
+                userData.selectedJobAirtableId = null;
+                userData.conversationState = null;
+                await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Сохранили оценку по времени для задачи "'
+                    + updatedRecord.fields[JOBS_EXECUTIONS_TABLE_COLUMNS.JOB_NAME] + '"');
+            }
+
+        } else {
+            // create new record
+            const jobResponseField = {
+                [JOBS_EXECUTIONS_TABLE_COLUMNS.USER_RECORD_ID]: [userData.airtableId],
+                [JOBS_EXECUTIONS_TABLE_COLUMNS.JOB_RECORD_ID]: [userData.selectedJobAirtableId],
+                [JOBS_EXECUTIONS_TABLE_COLUMNS.ESTIMATION_HOUR]: [enteredTimeInt],
+            };
+            const jobResponseRecord = await createRecordInTable(TABLE_NAMES.JOBS_EXECUTIONS, jobResponseField);
+
+            if (jobResponseRecord) {
+                userData.selectedJobAirtableId = null;
+                userData.conversationState = null;
+                await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Отклик отправлен. Позже мы сообщим о том, будем ли работать по ' +
+                    'задаче с тобой или выбрали кого-то другого');
+            }
+        }
+    }
+}
+
+
+async function tellUserEnterRealTime(userData) {
+    await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Укажи, сколько часов ты потратил на задачу:');
 }
 
 async function userEnteredRealTimeForJob(msg, userData) {
@@ -391,8 +550,8 @@ async function userEnteredRealTimeForJob(msg, userData) {
 
         const jobExecutionRecord = await updateFieldsInTable(TABLE_NAMES.JOBS_EXECUTIONS, completedJobExecutionRecordId, fields);
         if (jobExecutionRecord) {
-
-            userData.completedJobExecutionAirtableId = 0;
+            userData.completedJobExecutionAirtableId = null;
+            userData.conversationState = null;
             await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Записали. Данная задача учтена для получения выплат. ' +
                 '\nТеперь оцени, пожалуйста, работу лида по задаче');
 
@@ -402,7 +561,7 @@ async function userEnteredRealTimeForJob(msg, userData) {
                 reply_markup: JSON.stringify({
                     inline_keyboard: [
                         [{
-                            text: '1 - Ужасно',
+                            text: '1',
                             callback_data: JSON.stringify({
                                 action: OPTION_BUTTON_ACTION.LEAD_DIRECTION_SCORE,
                                 id: completedJobExecutionRecordId,
@@ -415,7 +574,7 @@ async function userEnteredRealTimeForJob(msg, userData) {
                                 id: completedJobExecutionRecordId,
                                 score: 2,
                             })
-                        }, {
+                        }], [{
                             text: '3',
                             callback_data: JSON.stringify({
                                 action: OPTION_BUTTON_ACTION.LEAD_DIRECTION_SCORE,
@@ -429,22 +588,21 @@ async function userEnteredRealTimeForJob(msg, userData) {
                                 id: completedJobExecutionRecordId,
                                 score: 4
                             })
-                        }, {
+                        }], [{
                             text: '5',
                             callback_data: JSON.stringify({
                                 action: OPTION_BUTTON_ACTION.LEAD_DIRECTION_SCORE,
                                 id: completedJobExecutionRecordId,
                                 score: 5
                             })
-                        }],
-                        [{
+                        }, {
                             text: '6',
                             callback_data: JSON.stringify({
                                 action: OPTION_BUTTON_ACTION.LEAD_DIRECTION_SCORE,
                                 id: completedJobExecutionRecordId,
                                 score: 6
                             })
-                        }, {
+                        }], [{
                             text: '7',
                             callback_data: JSON.stringify({
                                 action: OPTION_BUTTON_ACTION.LEAD_DIRECTION_SCORE,
@@ -458,7 +616,7 @@ async function userEnteredRealTimeForJob(msg, userData) {
                                 id: completedJobExecutionRecordId,
                                 score: 8
                             })
-                        }, {
+                        }], [{
                             text: '9',
                             callback_data: JSON.stringify({
                                 action: OPTION_BUTTON_ACTION.LEAD_DIRECTION_SCORE,
@@ -483,116 +641,6 @@ async function userEnteredRealTimeForJob(msg, userData) {
         } else {
             await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
             // todo log
-        }
-    }
-}
-
-export async function startWorkWithNewUser(msg) {
-    const chatId = msg.chat.id;
-
-    try {
-        const fields = {
-            [USERS_TABLE_COLUMNS.CHAT_ID]: chatId.toString(),
-            [USERS_TABLE_COLUMNS.TELEGRAM]: msg.chat.username.toString(),
-        };
-
-        const airtableRecord = await Base.createRecordInTable(TABLE_NAMES.USERS, fields);
-        if (!airtableRecord) {
-            // todo log
-            await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
-            return;
-        }
-
-        let userData = {};
-        userData.chatId = chatId;
-        userData.airtableId = airtableRecord.id;
-        userData.telegramUsername = airtableRecord.fields[USERS_TABLE_COLUMNS.TELEGRAM];
-        userData.status = USER_STATUSES.NEW_USER;
-
-        usersDataCash[chatId] = userData;
-        await tellUserEnterName(userData);
-
-    } catch (e) {
-        // todo log
-        await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
-    }
-}
-
-export async function sendNewJobToUsers(jobRecord) {
-    if (!jobRecord) {
-        return;
-    }
-
-    for (const chatId in usersDataCash) {
-        const userData = usersDataCash[chatId];
-        if (!userData) {
-            return;
-        }
-
-        if (userData.status === USER_STATUSES.APPROVED) {
-            await sendJobToUser(userData, jobRecord);
-        }
-    }
-
-    // save information that job was send to users
-    const fields = {
-        [JOBS_TABLE_COLUMNS.JOB_WAS_SEND]: true,
-    };
-    Base.updateFieldsInTable(TABLE_NAMES.JOBS, jobRecord.id, fields)
-        .then(record => {
-        })
-        .catch(err => {
-            //todo log
-        })
-
-}
-
-async function sendJobToUser(userData, jobRecord) {
-
-    let descriptionRichText = jobRecord.fields[JOBS_TABLE_COLUMNS.DESCRIPTION];
-
-    const deadlineDate = jobRecord.fields[JOBS_TABLE_COLUMNS.DEADLINE_DATE];
-    if (deadlineDate && descriptionRichText) {
-        const deadlineFormatDate = new Date(deadlineDate).toLocaleDateString('ru-Ru');
-        descriptionRichText += '\n\n**Крайняя дата приема заявок:** ' + deadlineFormatDate;
-    }
-
-    const htmlJobDescription = convertRichTextToHtml(descriptionRichText);
-
-    const options = {
-        reply_markup: JSON.stringify({
-            inline_keyboard: [
-                [{
-                    text: 'Откликнуться',
-                    callback_data: JSON.stringify({action: OPTION_BUTTON_ACTION.JOB_RESPONSE, jobId: jobRecord.id})
-                }]
-            ]
-        }),
-        parse_mode: 'HTML' // Set parse mode to HTML
-    };
-
-    await sendTextWithOptionsToChat(userData.chatId, htmlJobDescription, options);
-}
-
-async function userEnteredJobEstimationTime(msg, userData) {
-    const enteredTime = msg.text;
-    const enteredTimeInt = parseInt(enteredTime.replace(' ', ''));
-
-    if (!enteredTimeInt || enteredTimeInt <= 0) {
-        await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Введено некорректное время. \nУкажи в часах максимлаьную оценку в часах на задачу:');
-
-    } else {
-        const jobResponseField = {
-            [JOBS_EXECUTIONS_TABLE_COLUMNS.USER_ID]: [userData.airtableId],
-            [JOBS_EXECUTIONS_TABLE_COLUMNS.JOB]: [userData.selectedJobAirtableId],
-            [JOBS_EXECUTIONS_TABLE_COLUMNS.ESTIMATION_HOUR]: [enteredTimeInt],
-        };
-        const jobResponseRecord = await createRecordInTable(TABLE_NAMES.JOBS_EXECUTIONS, jobResponseField);
-
-        if (jobResponseRecord) {
-            userData.selectedJobAirtableId = null;
-            await sendPlainTextToChatInHTMLFormat(userData.chatId, 'Отклик отправлен. Позже мы сообщим о том, будем ли работать по ' +
-            'задаче с тобой или выбрали кого-то другого');
         }
     }
 }
@@ -636,7 +684,7 @@ async function userSetLeadDirectionScore(chatId, responseData, callbackQuery) {
                             id: completedJobExecutionRecordId,
                             score: 2
                         })
-                    }, {
+                    }], [{
                         text: '3',
                         callback_data: JSON.stringify({
                             action: OPTION_BUTTON_ACTION.LEAD_COMMUNICATION_SCORE,
@@ -650,22 +698,21 @@ async function userSetLeadDirectionScore(chatId, responseData, callbackQuery) {
                             id: completedJobExecutionRecordId,
                             score: 4
                         })
-                    }, {
+                    }], [{
                         text: '5',
                         callback_data: JSON.stringify({
                             action: OPTION_BUTTON_ACTION.LEAD_COMMUNICATION_SCORE,
                             id: completedJobExecutionRecordId,
                             score: 5
                         })
-                    }],
-                    [{
+                    }, {
                         text: '6',
                         callback_data: JSON.stringify({
                             action: OPTION_BUTTON_ACTION.LEAD_COMMUNICATION_SCORE,
                             id: completedJobExecutionRecordId,
                             score: 6
                         })
-                    }, {
+                    }], [{
                         text: '7',
                         callback_data: JSON.stringify({
                             action: OPTION_BUTTON_ACTION.LEAD_COMMUNICATION_SCORE,
@@ -679,7 +726,7 @@ async function userSetLeadDirectionScore(chatId, responseData, callbackQuery) {
                             id: completedJobExecutionRecordId,
                             score: 8
                         })
-                    }, {
+                    }], [{
                         text: '9',
                         callback_data: JSON.stringify({
                             action: OPTION_BUTTON_ACTION.LEAD_COMMUNICATION_SCORE,
@@ -705,6 +752,8 @@ async function userSetLeadDirectionScore(chatId, responseData, callbackQuery) {
     } else {
         await sendPlainTextToChatInHTMLFormat(chatId, 'Не удалось сохранить оценку');
     }
+
+    await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
 }
 
 async function userSetLeadCommunicationScore(chatId, responseData, callbackQuery) {
@@ -728,6 +777,8 @@ async function userSetLeadCommunicationScore(chatId, responseData, callbackQuery
     } else {
         await sendPlainTextToChatInHTMLFormat(chatId, 'Не удалось сохранить оценку');
     }
+
+    await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
 }
 
 export async function callbackHandler(callbackQuery) {
@@ -736,9 +787,15 @@ export async function callbackHandler(callbackQuery) {
     }
 
     const chatId = callbackQuery.message.chat.id;
+
+    const userData = usersDataCash[chatId];
+    if (!userData || userData.conversationState) {
+        await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+        return;
+    }
+
     const jsonData = callbackQuery.data;
     const responseData = JSON.parse(jsonData);
-
     if (!responseData) {
         return;
     }
@@ -749,11 +806,11 @@ export async function callbackHandler(callbackQuery) {
             break;
 
         case OPTION_BUTTON_ACTION.CHANGE_RATE:
-            await sayUserChangeRate(chatId);
+            await requestUserChangeRate(chatId);
             break;
 
         case OPTION_BUTTON_ACTION.REQUEST_MONEY:
-            await requestMoneyForUser(chatId, responseData, callbackQuery);
+            await requestMoneyForUser(chatId);
             break;
 
         case OPTION_BUTTON_ACTION.LEAD_DIRECTION_SCORE:
@@ -777,18 +834,15 @@ async function responseToJobCallbackHandler(chatId, responseData, callbackQuery)
 
                 const userData = usersDataCash[chatId];
                 if (userData && userData.status === USER_STATUSES.APPROVED) {
-
-                    userData.selectedJobAirtableId = jobAirtableId;
-                    userData.conversationState = USER_CONVERSATION_STATES.SET_JOB_ESTIMATION_TIME;
-                    await tellUserEnterEstimationTime(userData);
+                    await startWorkWithInputJobEstimationTime(chatId, jobAirtableId, null, jobRecord.fields[JOBS_TABLE_COLUMNS.NAME])
 
                 } else {
-                    await sendPlainTextToChatInHTMLFormat(chatId, "Кажется у тебя еще нет доступа для отклика на задачи");
+                    await sendPlainTextToChatInHTMLFormat(chatId, 'Кажется у тебя нет доступа для отклика на задачи');
                 }
 
             } else {
                 //todo console
-                await sendPlainTextToChatInHTMLFormat(chatId, "Срок отклика истек или мы уже закрыли запрос на задачу");
+                await sendPlainTextToChatInHTMLFormat(chatId, 'Срок отклика истек или мы уже закрыли запрос на задачу');
             }
         }
 
@@ -801,7 +855,20 @@ async function responseToJobCallbackHandler(chatId, responseData, callbackQuery)
     }
 }
 
-async function sayUserChangeRate(chatId) {
+export async function startWorkWithInputJobEstimationTime(chatId, jobRecordId, jobExecutionRecordId, jobName) {
+    const userData = usersDataCash[chatId];
+    if (!userData || userData.conversationState) {
+        return;
+    }
+
+    userData.selectedJobAirtableId = jobRecordId;
+    userData.selectedJobExecutionAirtableId = jobExecutionRecordId;
+    userData.conversationState = USER_CONVERSATION_STATES.SET_JOB_ESTIMATION_TIME;
+
+    await tellUserEnterEstimationTime(userData, jobName);
+}
+
+async function requestUserChangeRate(chatId) {
     const userData = usersDataCash[chatId];
     if (!userData) {
         return;
@@ -811,11 +878,10 @@ async function sayUserChangeRate(chatId) {
     await tellUserEnterHourRate(userData);
 }
 
-async function requestMoneyForUser(chatId, responseData, callbackQuery) {
+async function requestMoneyForUser(chatId) {
     const userData = usersDataCash[chatId];
     if (!userData) {
         //todo log
-        //todo find and create
         return;
     }
 
@@ -853,37 +919,55 @@ async function requestMoneyForUser(chatId, responseData, callbackQuery) {
 }
 
 
-export async function informUserAboutNewStatus(userData) {
-    switch (userData.status) {
+export async function applyUserNewStatus(userData, newStatus) {
+    userData.status = newStatus;
+    await informUserAboutNewStatus(userData);
+}
 
+export async function informUserAboutNewStatus(userData) {
+    let newStatusMessage = '<b>Твой статус обновился:</b>\n'
+
+    switch (userData.status) {
         case USER_STATUSES.MAKE_DOCS:
-            await sendPlainTextToChatInHTMLFormat(userData.chat_id, 'Нужно подписать документы. Мы свяжемся с тобой в ' +
-                'личных сообщениях в ближайшие рабочие дни');
+            newStatusMessage += 'Для получения задач нужно подписать документы. Мы свяжемся с тобой в ' +
+                'личных сообщениях в ближайшие рабочие дни';
             break;
 
         case USER_STATUSES.APPROVED:
-            await sendPlainTextToChatInHTMLFormat(userData.chat_id, 'Доступ открыт. Теперь ты будешь получать все задачи');
+            newStatusMessage += 'Доступ открыт. Теперь ты сможешь получать задачи и откликаться на них';
             break;
 
         case USER_STATUSES.REJECTED:
-            await sendPlainTextToChatInHTMLFormat(userData.chat_id, 'Доступ заблокирован');
+            newStatusMessage += 'Доступ к платформе закрыт. Теперь ты не сможешь получать задачи и откликаться на них';
             break;
     }
+
+    await sendPlainTextToChatInHTMLFormat(userData.chat_id, newStatusMessage);
+    await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
 }
 
 export async function informUserAboutJobExecutionNewStatus(jobExecutionRecord) {
     const chatIdArray = jobExecutionRecord.fields[JOBS_EXECUTIONS_TABLE_COLUMNS.USER_CHAT_ID];
     const chatId = chatIdArray ? chatIdArray[0] : null;
-    try {
-        const userData = usersDataCash[chatId];
-        const newStatus = jobExecutionRecord.fields[JOBS_EXECUTIONS_TABLE_COLUMNS.STATUS];
+    const userData = usersDataCash[chatId];
 
-        if (!chatId || !userData || !newStatus) {
+    if (!chatId || !userData) {
+        return;
+    }
+
+    if (userData.conversationState) {
+        // need complete previous conversation
+        return;
+    }
+
+    try {
+        const newStatus = jobExecutionRecord.fields[JOBS_EXECUTIONS_TABLE_COLUMNS.STATUS];
+        if (!newStatus) {
             return;
         }
 
-        const infoTitleAboutTask = '<b>Изменился статус по задаче \"'
-            + jobExecutionRecord.fields[JOBS_EXECUTIONS_TABLE_COLUMNS.TASK_NAME] + '\":</b>\n'
+        const infoTitleAboutTask = '<b>Изменился статус по задаче "'
+            + jobExecutionRecord.fields[JOBS_EXECUTIONS_TABLE_COLUMNS.TASK_NAME] + '":</b>\n'
 
 
         switch (newStatus) {
@@ -901,10 +985,9 @@ export async function informUserAboutJobExecutionNewStatus(jobExecutionRecord) {
 
             case JOBS_EXECUTION_STATUSES.COMPLETED:
                 await sendPlainTextToChatInHTMLFormat(chatId, infoTitleAboutTask + "Задача успешно выполнена и закрыта");
-                userData.conversationState = USER_CONVERSATION_STATES.SET_JOB_REAL_TIME;
                 userData.completedJobExecutionAirtableId = jobExecutionRecord.id;
+                userData.conversationState = USER_CONVERSATION_STATES.SET_JOB_REAL_TIME;
                 await tellUserEnterRealTime(userData);
-
                 break;
         }
 

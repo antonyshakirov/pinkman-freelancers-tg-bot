@@ -11,7 +11,10 @@ import {
     showUserTaskInfo,
     startWorkWithNewUser
 } from "./bot-actions.js";
-const bot = new TelegramBot('7115871048:AAEf2jTqg13L0xxBeDPbaq5VnArvOeNYUjo', {polling: true});
+
+export let isTestMode = false; // todo change it auto for test on local server;
+const botToken = isTestMode ? '7115871048:AAEf2jTqg13L0xxBeDPbaq5VnArvOeNYUjo' : '7115871048:AAEf2jTqg13L0xxBeDPbaq5VnArvOeNYUjo';
+const bot = new TelegramBot(botToken, {polling: true});
 
 export async function initBot() {
     bot.on('polling_error', (error) => {
@@ -19,11 +22,11 @@ export async function initBot() {
         bot.stopPolling();
     });
 
-    const menuCommands = ['/start', '/profile', '/help', '/my_task'];
+    const menuCommands = ['/start', '/profile', '/my_task', '/help'];
     await bot.setMyCommands([
-        {command: "profile", description: "Просмотр профиля"},
-        {command: "my_task", description: "Просмотр твоих задач"},
-        {command: "help", description: "Позвать техническую поддержку или тимлидов Pinkman"},
+        {command: 'profile', description: "Просмотр профиля"},
+        {command: 'my_task', description: "Просмотр твоих задач"},
+        {command: 'help', description: "Позвать техническую поддержку или тимлидов Pinkman"},
     ]);
 
 
@@ -35,8 +38,6 @@ export async function initBot() {
             const userData = usersDataCash[chatId];
             if (!userData) {
                 await startWorkWithNewUser(msg);
-            } else {
-                userData.conversationState = null;
             }
 
         } catch (e) {
@@ -127,7 +128,9 @@ export async function sendTextWithOptionsToChat(chatId, text, options) {
 
     } catch (e) {
         // todo log
-        await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
+        if (chatId) {
+            await bot.sendMessage(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
+        }
     }
 }
 
@@ -142,7 +145,9 @@ export async function editMessageReplyMarkup(chatId, messageId, newInlineKeyboar
 
     } catch (e) {
         // todo log
-        await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
+        if (chatId) {
+            await bot.sendMessage(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
+        }
     }
 
 }

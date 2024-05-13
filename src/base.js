@@ -1,4 +1,5 @@
 import {
+    JOBS_EXECUTION_STATUSES,
     JOBS_EXECUTIONS_TABLE_COLUMNS,
     JOBS_TABLE_COLUMNS,
     TABLE_NAMES,
@@ -7,53 +8,75 @@ import {
 } from "./main.js";
 
 import Airtable from 'airtable';
-import {informUserAboutNewStatus, sendNewJobToUsers, informUserAboutJobExecutionNewStatus} from "./bot-actions.js";
+import {
+    sendNewJobToUsers,
+    informUserAboutJobExecutionNewStatus,
+    applyUserNewStatus, startWorkWithInputJobEstimationTime
+} from "./bot-actions.js";
 
-export const base = new Airtable({apiKey: 'patyjyp3D51sr4Xbc.105a1158dc0342d7ba6cb59261f1293162a3f6173626b53cefd388da973adc86'}).base('apppEZ9COxjPRpdCL');
+export let isTestMode = false; // todo change it auto for test on local server;
+const baseApiKey = isTestMode ? 'patyjyp3D51sr4Xbc.105a1158dc0342d7ba6cb59261f1293162a3f6173626b53cefd388da973adc86' : 'patyjyp3D51sr4Xbc.105a1158dc0342d7ba6cb59261f1293162a3f6173626b53cefd388da973adc86';
+const baseId = isTestMode ? 'apppEZ9COxjPRpdCL' : 'apppEZ9COxjPRpdCL';
+export const base = new Airtable({apiKey: baseApiKey}).base(baseId);
 
 
 export async function initUserDataByBase() {
-    await base(TABLE_NAMES.USERS).select({})
-        .eachPage((records, fetchNextPage) => {
-                // Process each page of records
-                records.forEach((userAirtableData) => {
+    try {
+        await base(TABLE_NAMES.USERS).select({})
+            .eachPage((records, fetchNextPage) => {
+                    // Process each page of records
+                    records.forEach((userAirtableData) => {
 
-                    const chatId = userAirtableData.fields[USERS_TABLE_COLUMNS.CHAT_ID];
-                    if (chatId) {
-                        let userData = {};
-                        userData.airtableId = userAirtableData.id;
-                        userData.chatId = chatId;
-                        userData.telegramUsername = userAirtableData.fields[USERS_TABLE_COLUMNS.TELEGRAM];
-                        userData.name = userAirtableData.fields[USERS_TABLE_COLUMNS.NAME];
-                        userData.portfolio = userAirtableData.fields[USERS_TABLE_COLUMNS.PORTFOLIO];
-                        userData.hourRate = userAirtableData.fields[USERS_TABLE_COLUMNS.HOUR_RATE];
-                        userData.status = userAirtableData.fields[USERS_TABLE_COLUMNS.STATUS];
+                        const chatId = userAirtableData.fields[USERS_TABLE_COLUMNS.CHAT_ID];
+                        if (chatId) {
+                            let userData = {};
+                            userData.airtableId = userAirtableData.id;
+                            userData.chatId = chatId;
+                            userData.telegramUsername = userAirtableData.fields[USERS_TABLE_COLUMNS.TELEGRAM];
+                            userData.name = userAirtableData.fields[USERS_TABLE_COLUMNS.NAME];
+                            userData.portfolio = userAirtableData.fields[USERS_TABLE_COLUMNS.PORTFOLIO];
+                            userData.hourRate = userAirtableData.fields[USERS_TABLE_COLUMNS.HOUR_RATE];
+                            userData.status = userAirtableData.fields[USERS_TABLE_COLUMNS.STATUS];
 
-                        usersDataCash[chatId] = userData;
-                    }
-                });
+                            usersDataCash[chatId] = userData;
+                        }
+                    });
 
-                // Fetch the next page of records
-                fetchNextPage();
-            }
-        )
+                    // Fetch the next page of records
+                    fetchNextPage();
+                }
+            )
+
+    } catch (e) {
+        // todo log
+    }
 }
 
 export async function initBase() {
-    await sendNewJobsToUsers();
-    setInterval(() => {
-        sendNewJobsToUsers();
-    }, 7 * 60 * 1000); // each 7 minutes
+    try {
+        await sendNewJobsToUsers();
+        setInterval(async () => {
+            await sendNewJobsToUsers();
+        }, 1 * 60 * 1000); // each 1 minutes
 
-    await checkUserStatusUpdates();
-    setInterval(() => {
-        checkUserStatusUpdates();
-    }, 3 * 60 * 1000); // each 3 minutes
+        await checkUserStatusUpdates();
+        setInterval(async () => {
+            await checkUserStatusUpdates();
+        }, 1 * 60 * 1000); // each 1 minutes
 
-    await checkJobExecutionsStatusUpdates();
-    setInterval(() => {
-        checkJobExecutionsStatusUpdates();
-    }, 3.5 * 60 * 1000); // each 3.5 minutes
+        await checkJobExecutionsStatusUpdates();
+        setInterval(async () => {
+            await checkJobExecutionsStatusUpdates();
+        }, 1.5 * 60 * 1000); // each 1.5 minutes
+
+        await checkJobExecutionsWithoutEstimationTime();
+        setInterval(async () => {
+            await checkJobExecutionsWithoutEstimationTime();
+        }, 1.5 * 60 * 1000); // each 1.5 minutes
+
+    } catch (e) {
+        // todo log
+    }
 }
 
 
@@ -83,7 +106,6 @@ async function checkUserStatusUpdates() {
             updateFieldsInTable(TABLE_NAMES.USERS, userRecord.id, {
                 [USERS_TABLE_COLUMNS.STATUS_CHANGED]: false
             })
-
         })
 
     } catch (e) {
@@ -111,20 +133,46 @@ async function checkJobExecutionsStatusUpdates() {
         const findJobExecutionSelectFormula = `{${JOBS_EXECUTIONS_TABLE_COLUMNS.STATUS_CHANGED}} = TRUE()`
         const jobExecutionsWithUpdatedStatus = await selectRecordsInTable(TABLE_NAMES.JOBS_EXECUTIONS, findJobExecutionSelectFormula);
 
-        jobExecutionsWithUpdatedStatus.forEach(jobExecutionRecord => {
-            informUserAboutJobExecutionNewStatus(jobExecutionRecord);
-        })
+        for (const jobExecutionRecord of jobExecutionsWithUpdatedStatus) {
+            await informUserAboutJobExecutionNewStatus(jobExecutionRecord);
+        }
+
+        // when user don't input real time after server reload
+        const findCompletedJobExecutionSelectFormula = `AND({${JOBS_EXECUTIONS_TABLE_COLUMNS.STATUS}} = '${JOBS_EXECUTION_STATUSES.COMPLETED}',
+         NOT({${JOBS_EXECUTIONS_TABLE_COLUMNS.REAL_HOUR}}),
+         NOT({${JOBS_EXECUTIONS_TABLE_COLUMNS.STATUS_CHANGED}}))`;
+        const completedJobExecutionsWithoutRealTime = await selectRecordsInTable(TABLE_NAMES.JOBS_EXECUTIONS, findCompletedJobExecutionSelectFormula);
+
+        for (const jobExecutionRecord of completedJobExecutionsWithoutRealTime) {
+            await informUserAboutJobExecutionNewStatus(jobExecutionRecord);
+        }
 
     } catch (e) {
         //todo log
+        console.log(e);
     }
 }
 
+async function checkJobExecutionsWithoutEstimationTime() {
+    try {
+        const findJobExecutionsSelectFormula = `NOT({${JOBS_EXECUTIONS_TABLE_COLUMNS.ESTIMATION_HOUR}})`
+        const jobExecutionRecords = await selectRecordsInTable(TABLE_NAMES.JOBS_EXECUTIONS, findJobExecutionsSelectFormula);
 
-async function applyUserNewStatus(userData, newStatus) {
-    userData.status = newStatus;
-    await informUserAboutNewStatus(userData);
+        for (const jobExecutionRecord of jobExecutionRecords) {
+            await startWorkWithInputJobEstimationTime(
+                jobExecutionRecord.fields[JOBS_EXECUTIONS_TABLE_COLUMNS.USER_CHAT_ID],
+                null,
+                jobExecutionRecord.id,
+                jobExecutionRecord.fields[JOBS_EXECUTIONS_TABLE_COLUMNS.JOB_NAME]
+            );
+        }
+
+    } catch (e) {
+        //todo log
+        let o = 0;
+    }
 }
+
 
 export async function createRecordInTable(tableName, fieldsData) {
     return base(tableName).create(fieldsData);

@@ -389,10 +389,6 @@ async function userEnteredHourRate(msg, userData) {
             [USERS_TABLE_COLUMNS.TELEGRAM]: msg.chat.username.toString(), // upd if it changes on that step
         };
 
-        if (userData.conversationState === USER_CONVERSATION_STATES.SET_HOUR_RATE) {
-            fields[USERS_TABLE_COLUMNS.STATUS] = USER_STATUSES.MAKE_DOCS;
-        }
-
         Base.updateFieldsInTable(TABLE_NAMES.USERS, userData.airtableId, fields)
             .then(async record => {
                 userData.hourRate = record.fields[USERS_TABLE_COLUMNS.HOUR_RATE]
@@ -753,7 +749,7 @@ async function userSetLeadDirectionScore(chatId, responseData, callbackQuery) {
         await sendPlainTextToChatInHTMLFormat(chatId, 'Не удалось сохранить оценку');
     }
 
-    await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+    await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
 }
 
 async function userSetLeadCommunicationScore(chatId, responseData, callbackQuery) {
@@ -778,7 +774,7 @@ async function userSetLeadCommunicationScore(chatId, responseData, callbackQuery
         await sendPlainTextToChatInHTMLFormat(chatId, 'Не удалось сохранить оценку');
     }
 
-    await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+    await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
 }
 
 export async function callbackHandler(callbackQuery) {
@@ -942,8 +938,7 @@ export async function informUserAboutNewStatus(userData) {
             break;
     }
 
-    await sendPlainTextToChatInHTMLFormat(userData.chat_id, newStatusMessage);
-    await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+    await sendPlainTextToChatInHTMLFormat(userData.chatId, newStatusMessage);
 }
 
 export async function informUserAboutJobExecutionNewStatus(jobExecutionRecord) {

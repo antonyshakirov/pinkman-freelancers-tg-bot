@@ -389,6 +389,10 @@ async function userEnteredHourRate(msg, userData) {
             [USERS_TABLE_COLUMNS.TELEGRAM]: msg.chat.username.toString(), // upd if it changes on that step
         };
 
+        if (userData.conversationState === USER_CONVERSATION_STATES.SET_HOUR_RATE) {
+            fields[USERS_TABLE_COLUMNS.STATUS] = USER_STATUSES.MAKE_DOCS;
+        }
+
         Base.updateFieldsInTable(TABLE_NAMES.USERS, userData.airtableId, fields)
             .then(async record => {
                 userData.hourRate = record.fields[USERS_TABLE_COLUMNS.HOUR_RATE]

@@ -13,7 +13,7 @@ import {
 } from "./bot-actions.js";
 
 export let isTestMode = false; // todo change it auto for test on local server;
-const botToken = isTestMode ? '7115871048:AAEf2jTqg13L0xxBeDPbaq5VnArvOeNYUjo' : '7115871048:AAEf2jTqg13L0xxBeDPbaq5VnArvOeNYUjo';
+const botToken = isTestMode ? '7115871048:AAEf2jTqg13L0xxBeDPbaq5VnArvOeNYUjo' : '7137325520:AAEWszXsc1a4pmcaX-UKyN5IQGLVT-uT5to';
 const bot = new TelegramBot(botToken, {polling: true});
 
 export async function initBot() {

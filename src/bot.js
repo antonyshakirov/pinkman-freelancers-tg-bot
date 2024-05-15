@@ -48,7 +48,14 @@ export async function initBot() {
 
     await bot.onText(/\/profile/, async (msg) => {
         try {
-            await showUserProfileInfo(msg);
+            const chatId = msg.chat.id;
+            const userData = usersDataCash[chatId];
+            if (userData && userData.airtableId) {
+                await showUserProfileInfo(msg);
+            } else {
+                await startWorkWithNewUser(msg);
+            }
+
         } catch (e) {
             // todo log
             await sendPlainTextToChatInHTMLFormat(msg.chat.id, DEFAULT_ERROR_MESSAGE_TO_USER);
@@ -57,7 +64,14 @@ export async function initBot() {
 
     await bot.onText(/\/my_task/, async (msg) => {
         try {
-            await showUserTaskInfo(msg);
+            const chatId = msg.chat.id;
+            const userData = usersDataCash[chatId];
+            if (userData && userData.airtableId) {
+                await showUserTaskInfo(msg);
+            } else {
+                await startWorkWithNewUser(msg);
+            }
+
         } catch (e) {
             // todo log
             await sendPlainTextToChatInHTMLFormat(msg.chat.id, DEFAULT_ERROR_MESSAGE_TO_USER);
@@ -67,7 +81,14 @@ export async function initBot() {
     await bot.onText(/\/help/, async (msg) => {
         const chatId = msg.chat.id;
         try {
-            await sendPlainTextToChatInHTMLFormat(chatId, 'По техническим вопросам напиши в телеграм @antonshakirov')
+            const chatId = msg.chat.id;
+            const userData = usersDataCash[chatId];
+            if (userData && userData.airtableId) {
+                await sendPlainTextToChatInHTMLFormat(chatId, 'По техническим вопросам напиши в телеграм @antonshakirov');
+            } else {
+                await startWorkWithNewUser(msg);
+            }
+
         } catch (e) {
             // todo log
             await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
@@ -82,7 +103,13 @@ export async function initBot() {
                 return;
             }
 
-            await onMessageEnteredText(msg);
+            const chatId = msg.chat.id;
+            const userData = usersDataCash[chatId];
+            if (userData && userData.airtableId) {
+                await onMessageEnteredText(msg);
+            } else {
+                await startWorkWithNewUser(msg);
+            }
 
         } catch (e) {
             // todo log

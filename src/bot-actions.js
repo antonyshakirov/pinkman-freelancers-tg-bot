@@ -98,6 +98,14 @@ async function userRejectedReply(msg) {
 export async function startWorkWithNewUser(msg) {
     const chatId = msg.chat.id;
 
+    if (usersDataCash[chatId]) {
+        // user already exist
+        return;
+    }
+
+    const userData = {};
+    usersDataCash[chatId] = userData;
+
     try {
         const fields = {
             [USERS_TABLE_COLUMNS.CHAT_ID]: chatId.toString(),
@@ -107,23 +115,22 @@ export async function startWorkWithNewUser(msg) {
         const airtableRecord = await Base.createRecordInTable(TABLE_NAMES.USERS, fields);
         if (!airtableRecord) {
             // todo log
+            usersDataCash[chatId] = null;
             await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
             return;
         }
 
-        let userData = {};
-        userData.chatId = chatId;
         userData.airtableId = airtableRecord.id;
         userData.telegramUsername = airtableRecord.fields[USERS_TABLE_COLUMNS.TELEGRAM];
 
-        usersDataCash[chatId] = userData;
-
+        userData.creatingNewUserInAirtableInProcess = null;
         userData.status = USER_STATUSES.NEW_USER;
         userData.conversationState = USER_CONVERSATION_STATES.SET_NAME;
         await tellUserEnterName(userData);
 
     } catch (e) {
         // todo log
+        usersDataCash[chatId] = null;
         await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
     }
 }

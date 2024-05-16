@@ -24,6 +24,16 @@ export async function initBot() {
         botIsWorking = false;
         bot.stopPolling();
     });
+    bot.on('webhook_error', (error) => {
+        log.error("Bot webhook_error: " + error);
+        botIsWorking = false;
+        bot.stopPolling();
+    });
+    bot.on('error', (error) => {
+        log.error("Bot error: " + error);
+        botIsWorking = false;
+        bot.stopPolling();
+    });
 
     const menuCommands = ['/start', '/profile', '/my_task', '/help'];
     await bot.setMyCommands([

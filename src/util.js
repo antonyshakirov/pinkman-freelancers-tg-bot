@@ -7,6 +7,14 @@ export function convertRichTextToHtml(richText) {
     }
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+export const log = {
+    info: (message) => {
+        process.stdout.write(`INFO: ${message}\n`);
+    },
+    warn: (message) => {
+        process.stdout.write(`WARN: ${message}\n`);
+    },
+    error: (message) => {
+        process.stderr.write(`ERROR: ${message}\n`);
+    }
+};

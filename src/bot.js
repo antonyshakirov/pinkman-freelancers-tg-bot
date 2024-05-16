@@ -11,14 +11,17 @@ import {
     showUserTaskInfo,
     startWorkWithNewUser
 } from "./bot-actions.js";
+import {log} from "./util.js";
 
 export let isTestMode = false; // todo change it auto for test on local server;
 const botToken = isTestMode ? '7115871048:AAEf2jTqg13L0xxBeDPbaq5VnArvOeNYUjo' : '7137325520:AAEWszXsc1a4pmcaX-UKyN5IQGLVT-uT5to';
 const bot = new TelegramBot(botToken, {polling: true});
+export let botIsWorking = true;
 
 export async function initBot() {
     bot.on('polling_error', (error) => {
-        // todo log
+        log.error("Bot polling_error: " + error);
+        botIsWorking = false;
         bot.stopPolling();
     });
 
@@ -41,7 +44,7 @@ export async function initBot() {
             }
 
         } catch (e) {
-            // todo log
+            log.error('bot.onText /start error: ', e);
             await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
         }
     })
@@ -57,7 +60,7 @@ export async function initBot() {
             }
 
         } catch (e) {
-            // todo log
+            log.error('bot.onText /profile error: ', e);
             await sendPlainTextToChatInHTMLFormat(msg.chat.id, DEFAULT_ERROR_MESSAGE_TO_USER);
         }
     })
@@ -73,7 +76,7 @@ export async function initBot() {
             }
 
         } catch (e) {
-            // todo log
+            log.error('bot.onText /my_task error: ', e);
             await sendPlainTextToChatInHTMLFormat(msg.chat.id, DEFAULT_ERROR_MESSAGE_TO_USER);
         }
     })
@@ -90,7 +93,7 @@ export async function initBot() {
             }
 
         } catch (e) {
-            // todo log
+            log.error('bot.onText /help error: ', e);
             await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
         }
     })
@@ -112,7 +115,7 @@ export async function initBot() {
             }
 
         } catch (e) {
-            // todo log
+            log.error('bot.on message error: ', e);
             await sendPlainTextToChatInHTMLFormat(msg.chat.id, DEFAULT_ERROR_MESSAGE_TO_USER);
         }
     });
@@ -123,7 +126,7 @@ export async function initBot() {
             await callbackHandler(callbackQuery);
 
         } catch (e) {
-            // todo log
+            log.error('bot.on callback_query error: ', e);
             await sendPlainTextToChatInHTMLFormat(callbackQuery.from.chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
         }
     });
@@ -131,7 +134,7 @@ export async function initBot() {
 
 export async function sendPlainTextToChatInHTMLFormat(chatId, text) {
     if (!chatId) {
-        // todo log
+        log.warn('sendPlainTextToChatInHTMLFormat error, chatId not found');
         return;
     }
 
@@ -139,14 +142,16 @@ export async function sendPlainTextToChatInHTMLFormat(chatId, text) {
         await bot.sendMessage(chatId, text, {parse_mode: 'HTML'});
 
     } catch (e) {
-        // todo log
-        await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
+        log.warn('sendPlainTextToChatInHTMLFormat error: ' + e);
+        if (chatId) {
+            await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
+        }
     }
 }
 
 export async function sendTextWithOptionsToChat(chatId, text, options) {
     if (!chatId) {
-        // todo log
+        log.warn('sendTextWithOptionsToChat error, chatId not found');
         return;
     }
 
@@ -154,7 +159,7 @@ export async function sendTextWithOptionsToChat(chatId, text, options) {
         await bot.sendMessage(chatId, text, options);
 
     } catch (e) {
-        // todo log
+        log.warn('sendTextWithOptionsToChat error: ' + e);
         if (chatId) {
             await bot.sendMessage(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
         }
@@ -171,10 +176,9 @@ export async function editMessageReplyMarkup(chatId, messageId, newInlineKeyboar
         });
 
     } catch (e) {
-        // todo log
+        log.warn('editMessageReplyMarkup error: ' + e);
         if (chatId) {
             await bot.sendMessage(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
         }
     }
-
 }

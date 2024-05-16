@@ -1,7 +1,10 @@
 import * as Bot from "./bot.js";
 import * as Base from "./base.js";
 
-const http = require('http');
+
+import HTTP from "http";
+import {botIsWorking} from "./bot.js";
+import {log} from "./util.js";
 
 export const usersDataCash = {}; // user data by ChatId
 
@@ -94,30 +97,27 @@ export const DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE = 'Введи ответ на 
 
 export async function initializeServer() {
     try {
-        console.log("Start initialize server")
-        // todo log
+        log.info('Start initialize server');
 
         await Base.initUserDataByBase();
         await Base.initBase();
         await Bot.initBot();
 
-        console.log("Server was initialized")
-        // todo log
+        log.info('Server was initialized');
 
     } catch (error) {
-        console.error('Initialization error: ', error);
-        // todo log
+        log.error('Server initialization error: ', error);
     }
 }
 
 // check server
 const port = 3000;
-const server = http.createServer((req, res) => {
-    // Обработка GET-запроса по пути '/health'
-    if (req.method === 'GET' && req.url === '/health') {
+const server = HTTP.createServer((req, res) => {
+    if (req.method === 'GET' && req.url === '/health' && botIsWorking) {
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ status: 'ok' }));
+        res.end(JSON.stringify({status: 'ok'}));
+
     } else {
         res.statusCode = 404;
         res.setHeader('Content-Type', 'text/plain');
@@ -126,5 +126,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}/`);
+    log.info("Server HTTP running at port " + port);
 });

@@ -26,7 +26,7 @@ export const USER_CONVERSATION_STATES = {
 
 export const USER_STATUSES = {
     NEW_USER: 'Новый пользователь',
-    MAKE_DOCS: 'Подпись документов',
+    WAITING_APPROVE: 'Рассмотрение допуска к работе',
     APPROVED: 'Допущен к задачам',
     REJECTED: 'Заявка отклонена',
 };
@@ -84,6 +84,7 @@ export const PAYMENTS_TABLE_COLUMNS = {
 }
 
 export const OPTION_BUTTON_ACTION = {
+    APPROVE_SERVICE_CONDITIONS: 'approveServiceConditions',
     JOB_RESPONSE: 'jobResponse',
     CHANGE_RATE: 'changeRate',
     REQUEST_MONEY: 'requestMoney',

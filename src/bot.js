@@ -1,6 +1,6 @@
 import {
     usersDataCash,
-    DEFAULT_ERROR_MESSAGE_TO_USER,
+    DEFAULT_ERROR_MESSAGE_TO_USER, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE,
 } from "./main.js";
 
 import TelegramBot from 'node-telegram-bot-api';
@@ -13,7 +13,7 @@ import {
 } from "./bot-actions.js";
 import {log} from "./util.js";
 
-export let isTestMode = false; // todo change it auto for test on local server;
+export let isTestMode = process.env.IS_TEST === 'true';
 const botToken = isTestMode ? '7115871048:AAEf2jTqg13L0xxBeDPbaq5VnArvOeNYUjo' : '7137325520:AAEWszXsc1a4pmcaX-UKyN5IQGLVT-uT5to';
 const bot = new TelegramBot(botToken, {polling: true});
 export let botIsWorking = true;
@@ -51,6 +51,9 @@ export async function initBot() {
             const userData = usersDataCash[chatId];
             if (!userData) {
                 await startWorkWithNewUser(msg);
+            }
+            if (userData.conversationState) {
+                await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
             }
 
         } catch (e) {
@@ -98,6 +101,10 @@ export async function initBot() {
             const userData = usersDataCash[chatId];
             if (userData && userData.airtableId) {
                 await sendPlainTextToChatInHTMLFormat(chatId, 'По техническим вопросам напиши в телеграм @antonshakirov');
+                if (userData.conversationState) {
+                    await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+                }
+
             } else {
                 await startWorkWithNewUser(msg);
             }

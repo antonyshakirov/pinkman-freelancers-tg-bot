@@ -14,9 +14,9 @@ import {
     applyUserNewStatus, startWorkWithInputJobEstimationTime
 } from "./bot-actions.js";
 
-export let isTestMode = false; // todo change it auto for test on local server;
+export let isTestMode = process.env.IS_TEST === 'true';
 const baseApiKey = isTestMode ? 'patyjyp3D51sr4Xbc.105a1158dc0342d7ba6cb59261f1293162a3f6173626b53cefd388da973adc86' : 'patyjyp3D51sr4Xbc.105a1158dc0342d7ba6cb59261f1293162a3f6173626b53cefd388da973adc86';
-const baseId = isTestMode ? 'apppEZ9COxjPRpdCL' : 'apppEZ9COxjPRpdCL';
+const baseId = isTestMode ? 'appLgnXHx5wVfGzdy' : 'apppEZ9COxjPRpdCL';
 export const base = new Airtable({apiKey: baseApiKey}).base(baseId);
 
 

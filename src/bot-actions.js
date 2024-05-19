@@ -27,8 +27,8 @@ export async function onMessageEnteredText(msg) {
                 await newUserReply(msg, userData);
                 break;
 
-            case USER_STATUSES.MAKE_DOCS:
-                await userMakeDocsReply(msg);
+            case USER_STATUSES.WAITING_APPROVE:
+                await userWaitingApproveReply(msg);
                 break;
 
             case USER_STATUSES.APPROVED:
@@ -81,10 +81,8 @@ async function applyConversationAnswer(msg, userData) {
     }
 }
 
-async function userMakeDocsReply(msg) {
-    await sendPlainTextToChatInHTMLFormat(msg.chat.id, 'Твои документы еще в процессе подготовки и подписания. ' +
-        '\nМы свяжемся с тобой по документам, если еще не связались. Либо сообщим о статусе ' +
-        'твоего допуска к выполнению работ');
+async function userWaitingApproveReply(msg) {
+    await sendPlainTextToChatInHTMLFormat(msg.chat.id, 'Твой профиль еще в процессе рассмотрения допуска к работам');
 }
 
 async function userApprovedReply(msg) {
@@ -97,6 +95,39 @@ async function userRejectedReply(msg) {
 
 export async function startWorkWithNewUser(msg) {
     const chatId = msg.chat.id;
+    const userData = usersDataCash[chatId];
+
+    if (!userData) {
+        // init first message
+        const messageText = 'Мы работаем только c теми, у кого есть ИП или самозанятость в РФ. Для продолжения подтверди, что ты официально зарегистрирован как ИП или самозанятой в РФ'
+        const options = {
+            reply_markup: JSON.stringify({
+                inline_keyboard: [
+                    [{
+                        text: 'У меня есть ИП/самозанятость',
+                        callback_data: JSON.stringify({
+                            action: OPTION_BUTTON_ACTION.APPROVE_SERVICE_CONDITIONS,
+                            approveConditions: true
+                        })
+                    }],
+                    [{
+                        text: 'Ничего нет',
+                        callback_data: JSON.stringify({
+                            action: OPTION_BUTTON_ACTION.APPROVE_SERVICE_CONDITIONS,
+                            approveConditions: false
+                        })
+                    }]
+                ]
+            }),
+            parse_mode: 'HTML' // Set parse mode to HTML
+        };
+
+        await sendTextWithOptionsToChat(chatId, messageText, options);
+    }
+}
+
+async function initNewUser(msg) {
+    const chatId = msg.chat.id;
 
     if (usersDataCash[chatId]) {
         // user already exist
@@ -104,6 +135,7 @@ export async function startWorkWithNewUser(msg) {
     }
 
     const userData = {};
+    userData.chatId = chatId;
     usersDataCash[chatId] = userData;
 
     try {
@@ -168,7 +200,7 @@ export async function showUserProfileInfo(msg) {
                 profileInfoMessage += 'новый пользователь';
                 break;
 
-            case USER_STATUSES.MAKE_DOCS:
+            case USER_STATUSES.WAITING_APPROVE:
                 profileInfoMessage += 'подписываем документы для работы';
                 break;
 
@@ -193,7 +225,6 @@ export async function showUserProfileInfo(msg) {
         }
 
         // send message about profile info
-
         const inline_keyboard = [];
         if (userData.status === USER_STATUSES.APPROVED) {
             inline_keyboard.push([{
@@ -218,6 +249,9 @@ export async function showUserProfileInfo(msg) {
         };
 
         await sendTextWithOptionsToChat(userData.chatId, profileInfoMessage, options);
+        if (userData.conversationState) {
+            await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+        }
 
 
         // refresh user telegram
@@ -245,7 +279,7 @@ export async function showUserTaskInfo(msg) {
             return;
         }
 
-        if (userData.status === USER_STATUSES.NEW_USER || userData.status === USER_STATUSES.MAKE_DOCS) {
+        if (userData.status === USER_STATUSES.NEW_USER || userData.status === USER_STATUSES.WAITING_APPROVE) {
             await sendPlainTextToChatInHTMLFormat(chatId, 'Пока еще нет доступа к просмотру выполненных задач');
             return;
         }
@@ -282,6 +316,10 @@ export async function showUserTaskInfo(msg) {
             await sendPlainTextToChatInHTMLFormat(chatId, summaryStatusAboutTask);
         } else {
             await sendPlainTextToChatInHTMLFormat(chatId, 'Нет активных или выполненных задач');
+        }
+
+        if (userData.conversationState) {
+            await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
         }
 
     } catch (e) {
@@ -397,7 +435,7 @@ async function userEnteredHourRate(msg, userData) {
         };
 
         if (userData.conversationState === USER_CONVERSATION_STATES.SET_HOUR_RATE) {
-            fields[USERS_TABLE_COLUMNS.STATUS] = USER_STATUSES.MAKE_DOCS;
+            fields[USERS_TABLE_COLUMNS.STATUS] = USER_STATUSES.WAITING_APPROVE;
         }
 
         Base.updateFieldsInTable(TABLE_NAMES.USERS, userData.airtableId, fields)
@@ -408,7 +446,7 @@ async function userEnteredHourRate(msg, userData) {
                 if (userData.conversationState === USER_CONVERSATION_STATES.SET_HOUR_RATE) {
 
                     userData.conversationState = null;
-                    await applyUserNewStatus(userData, USER_STATUSES.MAKE_DOCS)
+                    await applyUserNewStatus(userData, USER_STATUSES.WAITING_APPROVE)
 
                 } else {
                     userData.conversationState = null;
@@ -481,7 +519,10 @@ async function sendJobToUser(userData, jobRecord) {
     };
 
     await sendTextWithOptionsToChat(userData.chatId, htmlJobDescription, options);
-    await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+
+    if (userData.conversationState) {
+        await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+    }
 }
 
 
@@ -752,15 +793,16 @@ async function userSetLeadDirectionScore(chatId, responseData, callbackQuery) {
             }),
             parse_mode: 'HTML' // Set parse mode to HTML
         };
-
         await sendTextWithOptionsToChat(chatId, leadScoreMessageTitle, options);
-
 
     } else {
         await sendPlainTextToChatInHTMLFormat(chatId, 'Не удалось сохранить оценку');
     }
 
-    await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+    const userData = usersDataCash[chatId];
+    if (userData && userData.conversationState) {
+        await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+    }
 }
 
 async function userSetLeadCommunicationScore(chatId, responseData, callbackQuery) {
@@ -785,7 +827,10 @@ async function userSetLeadCommunicationScore(chatId, responseData, callbackQuery
         await sendPlainTextToChatInHTMLFormat(chatId, 'Не удалось сохранить оценку');
     }
 
-    await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+    const userData = usersDataCash[chatId];
+    if (userData && userData.conversationState) {
+        await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
+    }
 }
 
 export async function callbackHandler(callbackQuery) {
@@ -795,15 +840,20 @@ export async function callbackHandler(callbackQuery) {
 
     const chatId = callbackQuery.message.chat.id;
 
-    const userData = usersDataCash[chatId];
-    if (!userData || userData.conversationState) {
-        await sendPlainTextToChatInHTMLFormat(userData.chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
-        return;
-    }
-
     const jsonData = callbackQuery.data;
     const responseData = JSON.parse(jsonData);
     if (!responseData) {
+        return;
+    }
+
+    if (responseData.action === OPTION_BUTTON_ACTION.APPROVE_SERVICE_CONDITIONS) {
+        await responseToFirstMessageCallbackHandler(chatId, responseData, callbackQuery);
+        return;
+    }
+
+    const userData = usersDataCash[chatId];
+    if (!userData || userData.conversationState) {
+        await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_MESSAGE_ABOUT_QUESTION_ABOVE);
         return;
     }
 
@@ -830,6 +880,20 @@ export async function callbackHandler(callbackQuery) {
     }
 }
 
+
+async function responseToFirstMessageCallbackHandler(chatId, responseData, callbackQuery) {
+    // clean options
+    await editMessageReplyMarkup(chatId, callbackQuery.message.message_id, []);
+
+    if (responseData.approveConditions) {
+        await initNewUser(callbackQuery.message);
+
+    } else {
+        await sendPlainTextToChatInHTMLFormat(chatId, 'К сожалению, пока мы работаем только ' +
+            'с подрядчиками, имеющими самозанятость или ИП в РФ. Если ты хочешь работать с нами в ином формате - ' +
+            'отправляй заявку на электронную почту just@pinkman.ru');
+    }
+}
 
 async function responseToJobCallbackHandler(chatId, responseData, callbackQuery) {
     const jobAirtableId = responseData.jobId;
@@ -935,9 +999,8 @@ export async function informUserAboutNewStatus(userData) {
     let newStatusMessage = '<b>Твой статус обновился:</b>\n'
 
     switch (userData.status) {
-        case USER_STATUSES.MAKE_DOCS:
-            newStatusMessage += 'Для получения задач нужно подписать документы. Мы свяжемся с тобой в ' +
-                'личных сообщениях в ближайшие рабочие дни';
+        case USER_STATUSES.WAITING_APPROVE:
+            newStatusMessage += 'Мы рассматриваем твой профиль для доступа к работам. Обычно это занимает несколько рабочих дней';
             break;
 
         case USER_STATUSES.APPROVED:

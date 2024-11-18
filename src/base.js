@@ -48,7 +48,7 @@ export async function initUserDataByBase() {
             )
 
     } catch (e) {
-        // todo log
+        console.error(e);
     }
 }
 
@@ -69,13 +69,15 @@ export async function initBase() {
             await checkJobExecutionsStatusUpdates();
         }, 1.5 * 60 * 1000); // each 1.5 minutes
 
+        /**
         await checkJobExecutionsWithoutEstimationTime();
         setInterval(async () => {
             await checkJobExecutionsWithoutEstimationTime();
         }, 1.5 * 60 * 1000); // each 1.5 minutes
+        */
 
     } catch (e) {
-        // todo log
+        console.error(e);
     }
 }
 
@@ -90,7 +92,7 @@ async function sendNewJobsToUsers() {
         })
 
     } catch (e) {
-        //todo log
+        console.error(e);
     }
 }
 
@@ -109,7 +111,7 @@ async function checkUserStatusUpdates() {
         })
 
     } catch (e) {
-        //todo log
+        console.error(e);
     }
 }
 
@@ -148,8 +150,7 @@ async function checkJobExecutionsStatusUpdates() {
         }
 
     } catch (e) {
-        //todo log
-        console.log(e);
+        console.error(e);
     }
 }
 
@@ -168,8 +169,7 @@ async function checkJobExecutionsWithoutEstimationTime() {
         }
 
     } catch (e) {
-        //todo log
-        let o = 0;
+        console.error(e);
     }
 }
 

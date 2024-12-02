@@ -7,7 +7,7 @@ import {
 } from "./main.js";
 import * as Base from "./base.js";
 import {createRecordInTable, findRecordInTableById, updateFieldsInTable} from "./base.js";
-import {convertRichTextToHtml} from "./util.js";
+import {convertRichTextToHtml, log} from "./util.js";
 import {editMessageReplyMarkup, sendPlainTextToChatInHTMLFormat, sendTextWithOptionsToChat} from "./bot.js";
 
 
@@ -810,7 +810,7 @@ async function userSetLeadCommunicationScore(chatId, responseData, callbackQuery
     const score = responseData.score;
 
     if (!jobExecutionAirtableId || !score) {
-        // todo log
+        // todo
         await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
         return;
     }
@@ -959,7 +959,7 @@ async function requestMoneyForUser(chatId) {
     try {
         const userRecord = await findRecordInTableById(TABLE_NAMES.USERS, userData.airtableId);
         if (!userRecord) {
-            // todo log
+            log.error('requestMoneyForUser error. userRecord not found');
             await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
             return;
         }
@@ -1066,7 +1066,7 @@ export async function informUserAboutJobExecutionNewStatus(jobExecutionRecord) {
         })
 
     } catch (e) {
-        //todo log
+        log.error('informUserAboutJobExecutionNewStatus try catch error: ', e);
         await sendPlainTextToChatInHTMLFormat(chatId, DEFAULT_ERROR_MESSAGE_TO_USER);
     }
 }

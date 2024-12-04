@@ -100,9 +100,12 @@ export async function initializeServer() {
     try {
         log.info('Start initialize server');
 
+        log.info('Init disable');
+        /**
         await Base.initUserDataByBase();
         await Base.initBase();
         await Bot.initBot();
+            */
 
         log.info('Server was initialized');
 
